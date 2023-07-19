@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# hera custom
+sample/
+bin/
+logs/
+**/.ccls-cache/
