@@ -1,9 +1,9 @@
 
 CC = gcc
 CFLAGS  = -std=c11 -Os -g -pedantic -Wall -Wextra -Wpedantic -Werror
-CFLAGS += -Isrc/include/
+CFLAGS += -Isrc/include/ -D_GNU_SOURCE
 
-LDFLAGS = 
+LDFLAGS = -lX11 -lXft
 # -lGL -lGLU -lGLEW -lglfw -lm
 # -ldl -lXrandr -lXi -lX11 -lpthread
 # -lglut 

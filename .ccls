@@ -8,3 +8,6 @@ cc
 -Wpedantic
 -Werror
 -Isrc/include/
+-lX11
+-lXft
+-D_GNU_SOURCE
