@@ -39,6 +39,10 @@ typedef enum {
 #define log_trace(...)    logger(LS, LF_EROR,  LOG_THROW_LOCATION __VA_ARGS__)
 #define log_break()       logger(LS, LF_BRAK,  "")
 
+#define SFMT "\033[92m'%s'\033[0m"
+#define DFMT "\033[32m%d\033[0m"
+#define LDFMT "\033[92m%ld\033[0m"
+
 void logger(const Sector index, const Flag flag, const char *format, ...);
 
 
