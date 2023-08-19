@@ -1,10 +1,428 @@
 
+#include "hera.h"
 #include "logger.h"
 #define LS SECTOR_MAIN_HERA
 
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <X11/Xlib.h>
+// #include <X11/Xutil.h>
+// #include <X11/Xft/Xft.h>
+// #include <X11/cursorfont.h>
+// #include <X11/Xatom.h>
+// #include <X11/Xresource.h>
+
+
+// X context
+typedef struct xctx_t {
+    Display *dpy;
+    int screen;
+    int dpy_width;
+    int dpy_height;
+    Visual *visual;
+    Colormap color_map;
+    int depth;
+    Window win;
+} xctx_t;
+
+bool running = true;
+
+
+void draw(uint8_t *rgb_out, int w, int h) {
+    int i = 0;
+
+    for (i = 0; i < w * h; i += 4) {
+        rgb_out[i] = 255; // blue
+        rgb_out[i + 1] = 0; // green
+        rgb_out[i + 2] = 255; // red
+        // rgb_out[i + 3] = 10; // alpha
+    }
+}
+
+XImage *create_ximage(Display *display, Visual *visual, int width, int height)
+{
+    char *image32 = (char *)malloc(width * height * 4);
+    draw((uint8_t *)image32, width, height);
+
+    return XCreateImage(
+        display, visual, 24,
+        ZPixmap, 0, image32,
+        width, height, 32, 0
+    );
+}
+
+typedef union {
+    uint32_t value;
+    struct {
+        uint8_t w;
+        uint8_t x;
+        uint8_t y;
+        uint8_t z;
+    };
+} u32_t;
+
+u32_t u32(void *data) {
+    // printf(
+    //     "u32 { .w: "DFMT", .x: "DFMT", .y: "DFMT", .z: "DFMT" }\n"
+    //     "value: "DFMT"\n",
+    //     input.w, input.x, input.y, input.z,
+    //     input.value
+    // );
+    u32_t input = *(u32_t *)data;
+    u32_t output = {
+        .w = input.z,
+        .x = input.y,
+        .y = input.x,
+        .z = input.w,
+    };
+    return output;
+}
+
+typedef union {
+    uint16_t value;
+    struct {
+        uint8_t x;
+        uint8_t y;
+    };
+} u16_t;
+
+u16_t u16(void *data) {
+    u16_t input = *(u16_t *)data;
+    u16_t output = { .x = input.y, .y = input.x };
+    return output;
+}
 
 int main(void) {
     log_info("--- Hera ---");
+
+
+    // char *filename = "./sample/blade.jpg";
+    char *filename = "./sample/technoblade.png";
+    // char *filename = "./sample/cat.gif";
+
+    log_verbose("filename: "SFMT, filename);
+
+    uint8_t *buffer = NULL;
+
+    int fd = open(filename, O_RDONLY);
+    off_t filesize = lseek(fd, 0, SEEK_END);
+    buffer = malloc(filesize);
+    lseek(fd, 0, SEEK_SET);
+    read(fd, buffer, filesize);
+
+    // uint8_t *data = malloc();
+
+
+    const uint8_t PNG_SIGNATURE[8] = {
+        0x89, 0x50, 0x4E, 0x47,
+        0x0D, 0x0A, 0x1A, 0x0A
+    };
+
+    for (off_t x = 0; x < 8; x++) {
+        if (buffer[x] != PNG_SIGNATURE[x]) 
+            panic("invalid png signature");
+    }
+
+
+    // u32_t g = u32(&buffer[8]);
+    // printf("g: %d\n", g.value);
+    // g = get_u32(&g);
+    // printf("g: %d - %ld\n", g.value, sizeof(u32));
+
+    u32_t width;
+    u32_t height;
+    uint8_t bit_depth = 0;
+    uint8_t color_type = 0;
+    uint8_t compression = 0;
+    uint8_t filter = 0;
+    uint8_t interlace = 0;
+
+    log_info("filesize: %d", filesize);
+
+    for (off_t i = 8; i < filesize;) {
+        u32_t length = u32(&buffer[i]);
+        i += 4;
+
+        u32_t type = u32(&buffer[i]);
+        i += 4;
+
+        switch (type.value) {
+            case 0x49484452: // IHDR
+                if (length.value != 13) {
+                    log_error(
+                        "invalid IHDR length: %d != 13", length.value
+                    );
+                    return 1;
+                }
+
+                width = u32(&buffer[i]); i += 4;
+                height = u32(&buffer[i]); i += 4;
+                bit_depth = buffer[i]; i++;
+                color_type = buffer[i]; i++;
+                compression = buffer[i]; i++;
+                filter = buffer[i]; i++;
+                interlace = buffer[i]; i++;
+
+                log_verbose(
+                    "\nwidth: %d\nhieght: %d\nbit_depth: %d\ncolor_type: %d\n"
+                    "compression: %d\nfilter: %d\ninterlace: %d",
+                    width, height, bit_depth, color_type, compression,
+                    filter, interlace
+                );
+
+                break;
+            case 0x69434350: // iCCP
+                log_verbose("iCCP: length: %d", length.value);
+                char iccp_name[80];
+                uint8_t j = 0;
+                for (; j < 80; j++) {
+                    iccp_name[j] = buffer[i + j];
+                    if (!iccp_name[j]) break;
+                }
+                uint8_t icc_compression = buffer[i+j+1];
+                log_verbose("name: "SFMT", len: %d", iccp_name, j);
+                log_verbose("icc_compression: %d", icc_compression);
+
+                off_t n = 0;
+                for (off_t h=0; h < length.value-(j + 2); h++) {
+
+                    if (!buffer[i + j + 2 + h])
+                        printf("\033[31m00\033[0m ");
+                    else
+                        printf("%02x ", buffer[i + j + 2 + h]);
+
+                    n++;
+                    if (n > 20) {
+                        printf("\n");
+                        n = 0;
+                    }
+                }
+
+                printf("\n");
+
+                i += length.value;
+                break;
+            case 0x624b4744: // bKGD
+                switch (color_type) {
+                    case 4:
+                    case 0: {
+                        u16_t bg = u16(&buffer[i]);
+                        log_verbose("bg gray scale: %d", bg.value);
+                    } break;
+
+                    case 6:
+                    case 2: {
+                        u16_t red = u16(&buffer[i]);
+                        u16_t green = u16(&buffer[i + 2]);
+                        u16_t blue = u16(&buffer[i + 4]);
+
+                        log_verbose(
+                            "bg rgb: %d %d %d",
+                            red.value, green.value, blue.value
+                        );
+                    } break;
+
+                    case 3:
+                        log_verbose("palette index: %d", buffer[i]);
+                        break;
+
+                    default:
+                        log_warn("invalid color type");
+                        break;
+                }
+                i += length.value;
+                break;
+
+            case 0x70485973: { // pHYs 
+                u32_t x_axis = u32(&buffer[i]); i += 4;
+                u32_t y_axis = u32(&buffer[i]); i += 4;
+                uint8_t specifier = buffer[i]; i++;
+                log_info(
+                    "pHYs: x: %d, y: %d, specifier: %d",
+                    x_axis.value, y_axis.value, specifier
+                );
+            } break;
+
+            case 0x74494d45: { // tIME
+                u16_t year = u16(&buffer[i]); i += 2;
+                uint8_t month = buffer[i]; i++;
+                uint8_t day = buffer[i]; i++;
+                uint8_t hour = buffer[i]; i++;
+                uint8_t minute = buffer[i]; i++;
+                uint8_t second = buffer[i]; i++;
+
+                log_info(
+                    "tIME: %d-%02d-%02d %02d:%02d:%02d",
+                    year.value, month, day, hour, minute, second
+                );
+            } break;
+
+            case 0x49444154: { // IDAT
+                log_info("WidthxHeight: %d", width.value * height.value);
+                log_info("IDAT length: %d", length.value);
+                off_t n=0;
+                for (off_t j = i; j < length.value; j++) {
+                    if (!buffer[i + j])
+                        printf("\033[31m00\033[0m ");
+                    else
+                        printf("%02x ", buffer[i + j]);
+
+                    n++;
+                    if (n > 20) {
+                        printf("\n");
+                        n = 0;
+                    }
+                }
+                printf("\n");
+                i += length.value;
+            } break;
+
+            case 0x49454e44: { // IEND
+                log_info("-- IEND --");
+            } break;
+
+            default:
+                log_warn(
+                    "unknown type: %c%c%c%c "DFMT" 0x\033[32m%x\033[0m",
+                    type.z, type.y, type.x, type.w,
+                    type.value, type.value
+                );
+                return 1;
+                break;
+        }
+
+        // ignore crc for now
+        i += 4;
+
+        // break;
+
+
+        /*
+IHDR 1229472850 0x49484452
+PLTE 1347179589 0x504c5445
+IDAT 1229209940 0x49444154
+IEND 1229278788 0x49454e44
+bKGD 1649100612 0x624b4744
+cHRM 1665684045 0x6348524d
+dSIG 1683179847 0x64534947
+eXIf 1700284774 0x65584966
+gAMA 1732332865 0x67414d41
+hIST 1749635924 0x68495354
+iCCP 1766015824 0x69434350
+iTXt 1767135348 0x69545874
+pHYs 1883789683 0x70485973
+sBIT 1933723988 0x73424954
+sPLT 1934642260 0x73504c54
+sRGB 1934772034 0x73524742
+sTER 1934902610 0x73544552
+tEXt 1950701684 0x74455874
+tIME 1950960965 0x74494d45
+tRNS 1951551059 0x74524e53
+zTXt 2052348020 0x7a545874
+         */
+
+
+        // if (!buffer[i])
+        //     printf("\033[31m00\033[0m ");
+        // else
+        //     printf("%02x ", buffer[i]);
+        // printf("%3c ", buffer[i]);
+        //
+        // uint32_t type = buffer[i] << 24;
+        // type += buffer[i + 1] << 16;
+        // type += buffer[i + 2] << 8;
+        // type += buffer[i + 3];
+        //
+        // // uint32_t type = *(uint32_t *)&buffer[i];
+        // printf("type: 0x%x - %c %c %c %c\n", type, buffer[i], buffer[i+1], buffer[i+2], buffer[i+3]);
+        // printf("type: 0x%x == 0x49484452\n", type);
+        // break;
+
+        // switch (type) {
+        //     case 1
+        // }
+
+
+    }
+
+    printf("\n");
+    free(buffer);
+
+    return 0;
+
+    xctx_t xctx;
+    memset(&xctx, 0, sizeof(xctx_t));
+
+    if ((xctx.dpy = XOpenDisplay(NULL)) == NULL)
+        panic("con't open display :(");
+
+
+    xctx.screen = DefaultScreen(xctx.dpy);
+    xctx.dpy_width = DisplayWidth(xctx.dpy, xctx.screen);
+    xctx.dpy_height = DisplayHeight(xctx.dpy, xctx.screen);
+    xctx.visual = DefaultVisual(xctx.dpy, xctx.screen);
+    xctx.color_map = DefaultColormap(xctx.dpy, xctx.screen);
+    xctx.depth = DefaultDepth(xctx.dpy, xctx.screen);
+
+    int win_b_color = BlackPixel(xctx.dpy, xctx.screen);
+    int win_w_color = BlackPixel(xctx.dpy, xctx.screen);
+
+    xctx.win = XCreateSimpleWindow(
+        xctx.dpy,
+        XDefaultRootWindow(xctx.dpy),
+        0, 0,
+        600, 600,
+        0, win_b_color, win_w_color
+    );
+
+    XStoreName(xctx.dpy, xctx.win, "Hera");
+    XMapWindow(xctx.dpy, xctx.win);
+    XSelectInput(
+        xctx.dpy, xctx.win, 
+        KeyPressMask | ExposureMask | LeaveWindowMask
+    );
+    XFlush(xctx.dpy);
+
+    GC gc = XCreateGC(xctx.dpy, xctx.win, 0, NULL);
+
+    // uint8_t data[] = { 250, 0, 0, 250, 0, 0, 250, 0, 0, 250, 0, 0 };
+
+    // XImage *img = XCreateImage(
+    //     xctx.dpy, xctx.visual, xctx.depth, ZPixmap, 0,
+    //     (char *)data, 2, 2, 32, 0
+    // );
+
+    XImage *img = create_ximage(xctx.dpy, xctx.visual, 100, 100);
+
+    // Pixmap pm = XCreatePixmap(xctx.dpy, );
+
+
+    XEvent ev;
+    XSync(xctx.dpy, false);
+    while (running && !XNextEvent(xctx.dpy, &ev)) {
+        if (ev.type == KeyPress || ev.type == KeyRelease) {
+            if (ev.xkey.keycode == 24) {
+                running = false;
+            }
+        }
+        else if (ev.type == Expose) {
+            XPutImage(xctx.dpy, xctx.win, gc, img, 0, 0, 200, 200, 100, 100);
+        }
+    }
+        // if (handler[ev.type])
+        //     handler[ev.type](&ev); /* call handler */
+
+    // XftDrawDestroy(xftdraw);
+    // drw_free(drw);
+    XDestroyWindow(xctx.dpy, xctx.win);
+    XCloseDisplay(xctx.dpy);
 
     return 0;
 }
