@@ -105,6 +105,7 @@ int main(void) {
 
     // char *filename = "./sample/blade.jpg";
     char *filename = "./sample/technoblade.png";
+    // char *filename = "./test.png";
     // char *filename = "./sample/cat.gif";
 
     log_verbose("filename: "SFMT, filename);
@@ -180,6 +181,7 @@ int main(void) {
                 break;
             case 0x69434350: // iCCP
                 log_verbose("iCCP: length: %d", length.value);
+                /*
                 char iccp_name[80];
                 uint8_t j = 0;
                 for (; j < 80; j++) {
@@ -205,7 +207,7 @@ int main(void) {
                     }
                 }
 
-                printf("\n");
+                printf("\n"); */
 
                 i += length.value;
                 break;
@@ -214,7 +216,7 @@ int main(void) {
                     case 4:
                     case 0: {
                         u16_t bg = u16(&buffer[i]);
-                        log_verbose("bg gray scale: %d", bg.value);
+                        log_verbose("bKGD: gray scale: %d", bg.value);
                     } break;
 
                     case 6:
@@ -224,13 +226,13 @@ int main(void) {
                         u16_t blue = u16(&buffer[i + 4]);
 
                         log_verbose(
-                            "bg rgb: %d %d %d",
+                            "bKGD rgb: %d %d %d",
                             red.value, green.value, blue.value
                         );
                     } break;
 
                     case 3:
-                        log_verbose("palette index: %d", buffer[i]);
+                        log_verbose("bKGD: palette index: %d", buffer[i]);
                         break;
 
                     default:
@@ -267,8 +269,32 @@ int main(void) {
             case 0x49444154: { // IDAT
                 log_info("WidthxHeight: %d", width.value * height.value);
                 log_info("IDAT length: %d", length.value);
+
+                uint8_t cfm = buffer[i];
+                uint8_t cm = cfm & 15; // 15 == 0b00001111
+                uint8_t cinfo = cfm >> 4;
+                uint32_t win = 1 << (8 + cinfo);
+
+                log_verbose(
+                    "cfm: "DFMT", cm: "DFMT", cinfo: "DFMT", win: "DFMT,
+                    cfm, cm, cinfo, win
+                );
+
+                uint8_t flg = buffer[i + 1];
+                uint8_t fcheck = flg & 31;   // first 5 bytes
+                bool fdict = flg & 32;       // byte 6
+                uint8_t flevel = flg >> 6;   // byte 7 and 8
+
+                log_verbose(
+                    "flg: "DFMT", fcheck: "DFMT", fdict: "DFMT
+                    ", flevel: "DFMT", c: %d",
+                    flg, fcheck, fdict, flevel,
+                    (cfm * 256 + flg) % 31
+                );
+
+
                 off_t n=0;
-                for (off_t j = i; j < length.value; j++) {
+                for (off_t j = 2; j < length.value ; j++) {
                     if (!buffer[i + j])
                         printf("\033[31m00\033[0m ");
                     else
