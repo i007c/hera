@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -34,6 +35,7 @@ typedef struct xctx_t {
 
 bool running = true;
 
+void inflate(uint8_t *buffer, size_t length);
 
 void draw(uint8_t *rgb_out, int w, int h) {
     int i = 0;
@@ -58,53 +60,33 @@ XImage *create_ximage(Display *display, Visual *visual, int width, int height)
     );
 }
 
-typedef union {
-    uint32_t value;
-    struct {
-        uint8_t w;
-        uint8_t x;
-        uint8_t y;
-        uint8_t z;
-    };
-} u32_t;
+uint32_t u32(void *data) {
+    uint8_t a = ((uint8_t *)data)[0];
+    uint8_t b = ((uint8_t *)data)[1];
+    uint8_t c = ((uint8_t *)data)[2];
+    uint8_t d = ((uint8_t *)data)[3];
 
-u32_t u32(void *data) {
-    // printf(
-    //     "u32 { .w: "DFMT", .x: "DFMT", .y: "DFMT", .z: "DFMT" }\n"
-    //     "value: "DFMT"\n",
-    //     input.w, input.x, input.y, input.z,
-    //     input.value
-    // );
-    u32_t input = *(u32_t *)data;
-    u32_t output = {
-        .w = input.z,
-        .x = input.y,
-        .y = input.x,
-        .z = input.w,
-    };
-    return output;
+    return (a << 24) + (b << 16) + (c << 8) + (d);
 }
 
-typedef union {
-    uint16_t value;
-    struct {
-        uint8_t x;
-        uint8_t y;
-    };
-} u16_t;
+uint16_t u16(void *data) {
+    uint8_t a = ((uint8_t *)data)[0];
+    uint8_t b = ((uint8_t *)data)[1];
 
-u16_t u16(void *data) {
-    u16_t input = *(u16_t *)data;
-    u16_t output = { .x = input.y, .y = input.x };
-    return output;
+    return (a << 8) + (b);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     log_info("--- Hera ---");
 
+    char filename[256] = "./sample/technoblade.png";
+
+    if (argc > 1) {
+        strncpy(filename, argv[1], 256);
+    }
 
     // char *filename = "./sample/blade.jpg";
-    char *filename = "./sample/technoblade.png";
+    // char *filename = "./sample/technoblade.png";
     // char *filename = "./test.png";
     // char *filename = "./sample/cat.gif";
 
@@ -132,13 +114,13 @@ int main(void) {
     }
 
 
-    // u32_t g = u32(&buffer[8]);
-    // printf("g: %d\n", g.value);
+    // uint32_t g = u32(&buffer[8]);
+    // printf("g: %d\n", g);
     // g = get_u32(&g);
-    // printf("g: %d - %ld\n", g.value, sizeof(u32));
+    // printf("g: %d - %ld\n", g, sizeof(u32));
 
-    u32_t width;
-    u32_t height;
+    uint32_t width = 0;
+    uint32_t height = 0;
     uint8_t bit_depth = 0;
     uint8_t color_type = 0;
     uint8_t compression = 0;
@@ -148,17 +130,17 @@ int main(void) {
     log_info("filesize: %d", filesize);
 
     for (off_t i = 8; i < filesize;) {
-        u32_t length = u32(&buffer[i]);
+        uint32_t length = u32(&buffer[i]);
         i += 4;
 
-        u32_t type = u32(&buffer[i]);
+        uint32_t type = u32(&buffer[i]);
         i += 4;
 
-        switch (type.value) {
+        switch (type) {
             case 0x49484452: // IHDR
-                if (length.value != 13) {
+                if (length != 13) {
                     log_error(
-                        "invalid IHDR length: %d != 13", length.value
+                        "invalid IHDR length: %d != 13", length
                     );
                     return 1;
                 }
@@ -180,7 +162,7 @@ int main(void) {
 
                 break;
             case 0x69434350: // iCCP
-                log_verbose("iCCP: length: %d", length.value);
+                log_verbose("iCCP: length: %d", length);
                 /*
                 char iccp_name[80];
                 uint8_t j = 0;
@@ -193,7 +175,7 @@ int main(void) {
                 log_verbose("icc_compression: %d", icc_compression);
 
                 off_t n = 0;
-                for (off_t h=0; h < length.value-(j + 2); h++) {
+                for (off_t h=0; h < length-(j + 2); h++) {
 
                     if (!buffer[i + j + 2 + h])
                         printf("\033[31m00\033[0m ");
@@ -209,25 +191,25 @@ int main(void) {
 
                 printf("\n"); */
 
-                i += length.value;
+                i += length;
                 break;
             case 0x624b4744: // bKGD
                 switch (color_type) {
                     case 4:
                     case 0: {
-                        u16_t bg = u16(&buffer[i]);
-                        log_verbose("bKGD: gray scale: %d", bg.value);
+                        uint16_t bg = u16(&buffer[i]);
+                        log_verbose("bKGD: gray scale: %d", bg);
                     } break;
 
                     case 6:
                     case 2: {
-                        u16_t red = u16(&buffer[i]);
-                        u16_t green = u16(&buffer[i + 2]);
-                        u16_t blue = u16(&buffer[i + 4]);
+                        uint16_t red = u16(&buffer[i]);
+                        uint16_t green = u16(&buffer[i + 2]);
+                        uint16_t blue = u16(&buffer[i + 4]);
 
                         log_verbose(
                             "bKGD rgb: %d %d %d",
-                            red.value, green.value, blue.value
+                            red, green, blue
                         );
                     } break;
 
@@ -239,21 +221,21 @@ int main(void) {
                         log_warn("invalid color type");
                         break;
                 }
-                i += length.value;
+                i += length;
                 break;
 
             case 0x70485973: { // pHYs 
-                u32_t x_axis = u32(&buffer[i]); i += 4;
-                u32_t y_axis = u32(&buffer[i]); i += 4;
+                uint32_t x_axis = u32(&buffer[i]); i += 4;
+                uint32_t y_axis = u32(&buffer[i]); i += 4;
                 uint8_t specifier = buffer[i]; i++;
                 log_info(
                     "pHYs: x: %d, y: %d, specifier: %d",
-                    x_axis.value, y_axis.value, specifier
+                    x_axis, y_axis, specifier
                 );
             } break;
 
             case 0x74494d45: { // tIME
-                u16_t year = u16(&buffer[i]); i += 2;
+                uint16_t year = u16(&buffer[i]); i += 2;
                 uint8_t month = buffer[i]; i++;
                 uint8_t day = buffer[i]; i++;
                 uint8_t hour = buffer[i]; i++;
@@ -262,13 +244,13 @@ int main(void) {
 
                 log_info(
                     "tIME: %d-%02d-%02d %02d:%02d:%02d",
-                    year.value, month, day, hour, minute, second
+                    year, month, day, hour, minute, second
                 );
             } break;
 
             case 0x49444154: { // IDAT
-                log_info("WidthxHeight: %d", width.value * height.value);
-                log_info("IDAT length: %d", length.value);
+                // log_info("WidthxHeight: %d", width * height);
+                log_info("IDAT length: %d at: %d", length, i);
 
                 uint8_t cfm = buffer[i];
                 uint8_t cm = cfm & 15; // 15 == 0b00001111
@@ -292,36 +274,59 @@ int main(void) {
                     (cfm * 256 + flg) % 31
                 );
 
+                inflate(&buffer[i + 2], length - 6);
+                uint32_t adlr32 = buffer[i + length - 4];
+                log_verbose("adlr32: %d", adlr32);
 
-                off_t n=0;
-                for (off_t j = 2; j < length.value ; j++) {
-                    if (!buffer[i + j])
-                        printf("\033[31m00\033[0m ");
-                    else
-                        printf("%02x ", buffer[i + j]);
-
-                    n++;
-                    if (n > 20) {
-                        printf("\n");
-                        n = 0;
-                    }
-                }
-                printf("\n");
-                i += length.value;
+                // off_t n=0;
+                // for (off_t j = 2; j < length ; j++) {
+                //     uint8_t b = buffer[i + j];
+                //     bool final = b & 1;
+                //     uint8_t method = (b >> 1) & 3;
+                //
+                //     log_info("b: %d, final: %d, method: %d", b, final, method);
+                //     break;
+                //
+                //
+                //     if (!buffer[i + j])
+                //         printf("\033[31m00\033[0m ");
+                //     else
+                //         printf("%02x ", buffer[i + j]);
+                //
+                //     n++;
+                //     if (n > 20) {
+                //         printf("\n");
+                //         n = 0;
+                //     }
+                // }
+                // printf("\n");
+                i += length;
             } break;
 
             case 0x49454e44: { // IEND
                 log_info("-- IEND --");
             } break;
 
-            default:
+            case 0x73424954: { // sBIT
+                log_info("sbit length: %d", length);
+                i += length;
+            } break;
+
+            case 0x65584966: { // eXIf
+                log_info("eXIf length: %d", length);
+                i += length;
+            } break;
+
+            default: {
+                uint8_t *ch = (uint8_t *)&type;
+
                 log_warn(
                     "unknown type: %c%c%c%c "DFMT" 0x\033[32m%x\033[0m",
-                    type.z, type.y, type.x, type.w,
-                    type.value, type.value
+                    ch[3], ch[2], ch[1], ch[0],
+                    type, type
                 );
                 return 1;
-                break;
+            } break;
         }
 
         // ignore crc for now
