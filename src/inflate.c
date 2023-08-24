@@ -59,10 +59,39 @@ uint32_t read_bits(uint8_t count) {
 }
 
 void inflate(uint8_t *buffer, size_t length) {
-    assert(length);
+    printf("inflate length: %ld\n", length);
 
     buf = buffer;
     len = length;
+    idx = 0;
+
+    uint8_t cfm = buf[idx]; idx++;
+    uint8_t cm = cfm & 15; // 15 == 0b00001111
+    uint8_t cinfo = cfm >> 4;
+    uint32_t win = 1 << (8 + cinfo);
+
+    printf(
+        "Compression Method: %d\n"
+        "Compression Info  : %d\n"
+        "Window Size       : %d\n",
+        cm, cinfo, win
+    );
+
+    uint8_t flg = buffer[idx]; idx++;
+    uint8_t fcheck = flg & 31;   // first 5 bytes
+    bool fdict = flg & 32;       // byte 6
+    uint8_t flevel = flg >> 6;   // byte 7 and 8
+
+    printf(
+        "flg: %d, fcheck: %d, fdict: %d, flevel: %d, c: %d\n",
+        flg, fcheck, fdict, flevel,
+        (cfm * 256 + flg) % 31
+    );
+
+    // inflate(&buffer[i + 2], length - 6);
+    // uint32_t adlr32 = buffer[i + length - 4];
+    // log_verbose("adlr32: %d", adlr32);
+
 
     bool final = false;
     uint8_t type = 0;
@@ -119,6 +148,8 @@ void inflate(uint8_t *buffer, size_t length) {
         for (uint8_t ci = 0; ci < num_cl_codes; ci++) {
             cl_code_lengths[CL_ORDER[ci]] = read_bits(3);
         }
+
+        break;
     }
 
 

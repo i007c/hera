@@ -79,11 +79,15 @@ uint16_t u16(void *data) {
 int main(int argc, char **argv) {
     log_info("--- Hera ---");
 
-    char filename[256] = "./sample/technoblade.png";
+    // char filename[256] = "./sample/technoblade.png";
+    char filename[256] = "./sample/r/4191220.png";
 
     if (argc > 1) {
         strncpy(filename, argv[1], 256);
     }
+
+    uint8_t *idat_buffer = NULL;
+    uint32_t idat_length = 0;
 
     // char *filename = "./sample/blade.jpg";
     // char *filename = "./sample/technoblade.png";
@@ -252,31 +256,14 @@ int main(int argc, char **argv) {
                 // log_info("WidthxHeight: %d", width * height);
                 log_info("IDAT length: %d at: %d", length, i);
 
-                uint8_t cfm = buffer[i];
-                uint8_t cm = cfm & 15; // 15 == 0b00001111
-                uint8_t cinfo = cfm >> 4;
-                uint32_t win = 1 << (8 + cinfo);
+                idat_length += length;
+                if (idat_buffer == NULL) {
+                    idat_buffer = malloc(idat_length);
+                } else {
+                    idat_buffer = realloc(idat_buffer, idat_length);
+                }
+                memcpy(&idat_buffer[idat_length - length], &buffer[i], length);
 
-                log_verbose(
-                    "cfm: "DFMT", cm: "DFMT", cinfo: "DFMT", win: "DFMT,
-                    cfm, cm, cinfo, win
-                );
-
-                uint8_t flg = buffer[i + 1];
-                uint8_t fcheck = flg & 31;   // first 5 bytes
-                bool fdict = flg & 32;       // byte 6
-                uint8_t flevel = flg >> 6;   // byte 7 and 8
-
-                log_verbose(
-                    "flg: "DFMT", fcheck: "DFMT", fdict: "DFMT
-                    ", flevel: "DFMT", c: %d",
-                    flg, fcheck, fdict, flevel,
-                    (cfm * 256 + flg) % 31
-                );
-
-                inflate(&buffer[i + 2], length - 6);
-                uint32_t adlr32 = buffer[i + length - 4];
-                log_verbose("adlr32: %d", adlr32);
 
                 // off_t n=0;
                 // for (off_t j = 2; j < length ; j++) {
@@ -304,7 +291,10 @@ int main(int argc, char **argv) {
             } break;
 
             case 0x49454e44: { // IEND
-                log_info("-- IEND --");
+                inflate(idat_buffer, idat_length);
+                free(idat_buffer);
+                log_info("-- IEND -- "DFMT, i);
+                i = filesize; // break from parent loop
             } break;
 
             case 0x73424954: { // sBIT
@@ -317,11 +307,35 @@ int main(int argc, char **argv) {
                 i += length;
             } break;
 
+            case 0x73524742: { // sRGB
+                log_info("sRGV length: %d", length);
+
+                uint8_t rendering_intent = buffer[i];
+                printf(
+                    "Rendering Intent: %d\n0: Perceptual\n"
+                    "1: Relative colorimetric\n"
+                    "2: Saturation\n3: Absolute colorimetric\n",
+                    rendering_intent
+                );
+
+                i += length;
+            } break;
+
+            case 0x67414d41: { // gAMA
+                log_verbose("gAMA length: "DFMT, length);
+
+                uint32_t gamma = u32(&buffer[i]);
+                log_verbose("gamma value: "DFMT, gamma);
+
+                i += length;
+            } break;
+
             default: {
                 uint8_t *ch = (uint8_t *)&type;
 
                 log_warn(
-                    "unknown type: %c%c%c%c "DFMT" 0x\033[32m%x\033[0m",
+                    "i: "DFMT"/"DFMT", unknown type: %c%c%c%c "
+                    DFMT" 0x\033[32m%x\033[0m", i, filesize,
                     ch[3], ch[2], ch[1], ch[0],
                     type, type
                 );
