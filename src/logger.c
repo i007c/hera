@@ -37,7 +37,7 @@ typedef struct SectorFile {
 
 
 
-static uint8_t sector_file_day = 0;
+// static uint8_t sector_file_day = 0;
 
 static SectorFile SECTORS[] = {
     [SECTOR_MAIN / 100]   = { NULL, "main",   "" },
@@ -47,17 +47,17 @@ static char* SUB_SECTOR_NAMES[] = {
     [SECTOR_MAIN_HERA]          = "hera",
 };
 
-static void make_dirs(void) {
-    char dirname[NAME_MAX + 5] = "logs/";
-
-    mkdir("logs", 0755);
-
-    for (uint8_t i = 0; i < SECTOR_LENGTH / 100; i++) {
-        memcpy(&dirname[5], SECTORS[i].name, NAME_MAX);
-        // snprintf(dirname, sizeof(dirname), "logs/%s", SECTORS[i].name);
-        mkdir(dirname, 0755);
-    }
-}
+// static void make_dirs(void) {
+//     char dirname[NAME_MAX + 5] = "logs/";
+//
+//     mkdir("logs", 0755);
+//
+//     for (uint8_t i = 0; i < SECTOR_LENGTH / 100; i++) {
+//         memcpy(&dirname[5], SECTORS[i].name, NAME_MAX);
+//         // snprintf(dirname, sizeof(dirname), "logs/%s", SECTORS[i].name);
+//         mkdir(dirname, 0755);
+//     }
+// }
 
 static void get_datetime(DateTime *datetime) {
     struct timeval tv;
@@ -77,32 +77,32 @@ static void get_datetime(DateTime *datetime) {
         datetime->ms = (uint8_t)(tv.tv_usec / 10000);
 }
 
-static void update_sectors(DateTime *datetime) {
-    bool called_make_dirs = false;
-    FILE *fd = NULL;
-
-    for (uint8_t i = 0; i < SECTOR_LENGTH / 100; i++) {
-        strcpy(SECTORS[i].path, "logs/");
-        memcpy(&SECTORS[i].path[5], SECTORS[i].name, NAME_MAX);
-        snprintf(
-            &SECTORS[i].path[strlen(SECTORS[i].path)],
-            9, "/%02d.log", datetime->week
-        );
-
-        fd = fopen(SECTORS[i].path, "a");
-        if (!called_make_dirs && fd == NULL && errno == ENOENT) {
-            make_dirs();
-            called_make_dirs = true;
-            fd = fopen(SECTORS[i].path, "a");
-        }
-
-        if (SECTORS[i].file != NULL) fclose(SECTORS[i].file);
-
-        SECTORS[i].file = fd;
-    }
-
-    sector_file_day = datetime->day;
-}
+// static void update_sectors(DateTime *datetime) {
+//     bool called_make_dirs = false;
+//     FILE *fd = NULL;
+//
+//     for (uint8_t i = 0; i < SECTOR_LENGTH / 100; i++) {
+//         strcpy(SECTORS[i].path, "logs/");
+//         memcpy(&SECTORS[i].path[5], SECTORS[i].name, NAME_MAX);
+//         snprintf(
+//             &SECTORS[i].path[strlen(SECTORS[i].path)],
+//             9, "/%02d.log", datetime->week
+//         );
+//
+//         fd = fopen(SECTORS[i].path, "a");
+//         if (!called_make_dirs && fd == NULL && errno == ENOENT) {
+//             make_dirs();
+//             called_make_dirs = true;
+//             fd = fopen(SECTORS[i].path, "a");
+//         }
+//
+//         if (SECTORS[i].file != NULL) fclose(SECTORS[i].file);
+//
+//         SECTORS[i].file = fd;
+//     }
+//
+//     sector_file_day = datetime->day;
+// }
 
 static char *get_tag(Flag flag, bool color) {
     if (color) {
@@ -172,35 +172,35 @@ void logger(const Sector index, const Flag flag, const char *format, ...) {
     }
 
     // log to file
-    if (datetime.day != sector_file_day || access(sector->path, F_OK))
-        update_sectors(&datetime);
+    // if (datetime.day != sector_file_day || access(sector->path, F_OK))
+    //     update_sectors(&datetime);
 
-    if (flag == LF_VERB)
-        return;
-
-    if (sector->file != NULL) {
-        if (flag == LF_BRAK)
-            fprintf(sector->file, "\n");
-        else
-            fprintf(sector->file, "%s %s\n", info, message);
-        fflush(sector->file);
-    } else {
-        update_sectors(&datetime);
-    }
+    // if (flag == LF_VERB)
+    //     return;
+    //
+    // if (sector->file != NULL) {
+    //     if (flag == LF_BRAK)
+    //         fprintf(sector->file, "\n");
+    //     else
+    //         fprintf(sector->file, "%s %s\n", info, message);
+    //     fflush(sector->file);
+    // } else {
+    //     update_sectors(&datetime);
+    // }
     
 }
 
 
 void logger_setup(void) {
-    DateTime datetime;
-    get_datetime(&datetime);
-    make_dirs();
-    update_sectors(&datetime);
+    // DateTime datetime;
+    // get_datetime(&datetime);
+    // make_dirs();
+    // update_sectors(&datetime);
 }
 
 void logger_clean(void) {
-    for (uint8_t i = 0; i < 1; i++) {
-        if (SECTORS[i].file != NULL)
-            fclose(SECTORS[i].file);
-    }
+    // for (uint8_t i = 0; i < 1; i++) {
+    //     if (SECTORS[i].file != NULL)
+    //         fclose(SECTORS[i].file);
+    // }
 }
