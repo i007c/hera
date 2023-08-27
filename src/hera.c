@@ -511,7 +511,7 @@ zTXt 2052348020 0x7a545874
         for (uint32_t ix=0; ix < width * cb + 1; ix++) {
             if (ix == 0) {
                 filter_type = image_output[n];
-                // if (filter_type == 3)
+                // if (filter_type)
                 //     printf("[%ld] filter: %d\n", n, image_output[n]);
             } else {
                 // image_data[m] = image_output[n];
@@ -735,22 +735,26 @@ zTXt 2052348020 0x7a545874
     int win_b_color = BlackPixel(xctx.dpy, xctx.screen);
     int win_w_color = BlackPixel(xctx.dpy, xctx.screen);
 
-    uint32_t win_width = 0;
-    uint32_t win_height = 0;
-    uint32_t win_max = 1024;
+    uint32_t win_width = width > 1920 ? 1920 : width;
+    uint32_t win_height = height > 1080 ? 1080 : height;
 
-        if (width > height) {
-            win_width = win_max;
-            win_height = win_max* (double)height / width;
-        } else {
-            win_height = win_max;
-            win_width = win_max * (double)width / height;
-        }
+
+    // if (width > 1920 || height > 1080) {
+    //     if (width > height) {
+    //         win_width = 1920;
+    //         win_height = 1920 * (double)height / width;
+    //     } else {
+    //         win_height = 1080;
+    //         win_width = 1080 * (double)width / height;
+    //     }
+    // }
+
+    // printf("width: %d - height: %d\n", win_width, win_height);
 
     xctx.win = XCreateSimpleWindow(
         xctx.dpy,
         XDefaultRootWindow(xctx.dpy),
-        300, 0,
+        (1920 - win_width) / 2, (1080 - win_height) / 2,
         win_width, win_height,
         0, win_b_color, win_w_color
     );
@@ -785,6 +789,8 @@ zTXt 2052348020 0x7a545874
 
     // Pixmap pm = XCreatePixmap(xctx.dpy, );
 
+    int dstx = 0; // (1920 - win_width) / 2;
+    int dsty = 0; // (1080 - win_height) / 2;
     int imgx = 0;
     int imgy = 0;
     // bool redraw = false;
@@ -815,7 +821,7 @@ zTXt 2052348020 0x7a545874
                         imgx = width - win_width;
                     }
                     // redraw = true;
-                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, 0, 0, width, height);
+                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, dstx, dsty, width, height);
                     break;
 
                 case 38:
@@ -823,7 +829,7 @@ zTXt 2052348020 0x7a545874
                     imgx -= factor;
                     imgx = imgx > 0 ? imgx : 0;
                     // redraw = true;
-                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, 0, 0, width, height);
+                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, dstx, dsty, width, height);
                     break;
 
                 case 25:
@@ -831,7 +837,7 @@ zTXt 2052348020 0x7a545874
                     imgy -= factor;
                     imgy = imgy > 0 ? imgy : 0;
                     // redraw = true;
-                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, 0, 0, width, height);
+                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, dstx, dsty, width, height);
                     break;
 
                 case 39:
@@ -841,7 +847,7 @@ zTXt 2052348020 0x7a545874
                         imgy = height - win_height;
                     }
                     // redraw = true;
-                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, 0, 0, width, height);
+                    XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, dstx, dsty, width, height);
                     break;
             }
         } 
@@ -850,7 +856,7 @@ zTXt 2052348020 0x7a545874
         //     redraw = false;
         // } 
         else if (ev.type == Expose) {
-            XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, 0, 0, width, height);
+            XPutImage(xctx.dpy, xctx.win, gc, img, imgx, imgy, dstx, dsty, width, height);
         }
     }
         // if (handler[ev.type])

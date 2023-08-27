@@ -726,7 +726,6 @@ void inflate(uint8_t *buffer, size_t length, uint8_t *output) {
     // lseek(fd, 0, SEEK_SET);
     // write(fd, &buf[2], len-6);
     // close(fd);
-    // printf("\033[33m10110111\033[0m\n");
     
     // final = read_bit();
     // type = read_bits(2);
@@ -759,7 +758,18 @@ void inflate(uint8_t *buffer, size_t length, uint8_t *output) {
 
         // printf("final: "DFMT", type: "DFMT"\n", final, type);
 
-        if (type == 1) {
+        if (type == 0) {
+            if (bdx) read_bits(8-bdx);
+
+            uint16_t data_len = read_bits(8) | (read_bits(8) << 8);
+            uint16_t data_nlen = read_bits(8) | (read_bits(8) << 8);
+
+            assert(data_len == ((~data_nlen) & 0xffff));
+            memcpy(out, &buf[idx], data_len);
+            out += data_len;
+            idx += data_len;
+            total_bytes += data_len;
+        } else if (type == 1) {
             decode_fixed();
         } else if (type == 2) {
             decode_dynamic();
