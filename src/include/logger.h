@@ -31,6 +31,7 @@ typedef enum {
     LF_BRAK,
 } Flag;
 
+#ifndef DISABLE_LOGGER
 #define log_verbose(...)  logger(LS, LF_VERB,  __VA_ARGS__)
 #define log_info(...)     logger(LS, LF_INFO,  __VA_ARGS__)
 #define log_warn(...)     logger(LS, LF_WARN,  __VA_ARGS__)
@@ -38,6 +39,15 @@ typedef enum {
 #define log_error(...)    logger(LS, LF_EROR,  __VA_ARGS__)
 #define log_trace(...)    logger(LS, LF_EROR,  LOG_THROW_LOCATION __VA_ARGS__)
 #define log_break()       logger(LS, LF_BRAK,  "")
+#else
+#define log_verbose(...) 
+#define log_info(...)    
+#define log_warn(...)    
+#define log_debug(...)   
+#define log_error(...)   
+#define log_trace(...)   
+#define log_break()      
+#endif
 
 #define SFMT "\033[92m'%s'\033[0m"
 #define DFMT "\033[32m%d\033[0m"

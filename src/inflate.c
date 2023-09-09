@@ -308,7 +308,7 @@ void build_code_tree(uint8_t *code_lengths, uint16_t alen, TreeTable *tree) {
     }
 }
 
-/* create_tree {{{
+/*
 void create_tree(uint8_t *code_lengths, uint16_t alen, TreeTable *tree) {
     int ix = 0;
     int ik = 0;
@@ -384,8 +384,7 @@ void create_tree(uint8_t *code_lengths, uint16_t alen, TreeTable *tree) {
         next_code[length]++;
     }
 }
-}}} */
-
+*/
 
 void parse_data(TreeTable *ll_tree, TreeTable *dist_tree) {
     TreeNode *node = &ll_tree->root;
@@ -481,7 +480,6 @@ void parse_data(TreeTable *ll_tree, TreeTable *dist_tree) {
 }
 
 
-/* decode_dynamic {{{ */
 void decode_dynamic(void) {
     uint8_t hlit = read_bits(5);
     uint16_t num_ll_codes = hlit + 257;
@@ -547,7 +545,6 @@ void decode_dynamic(void) {
         node = &cl_tree.root;
         assert(symbol >= 0 && symbol <= 18);
 
-        /* {{{ */
         // uint16_t cl_code = read_bits_reverse(cl_tree.min);
         // uint8_t cl_code_len = cl_tree.min;
         // uint16_t symbol = 420;
@@ -613,7 +610,6 @@ void decode_dynamic(void) {
         //         }
         //     }
         // }
-        /* }}} */ 
 
 
         if (symbol <= 15) {
@@ -666,7 +662,6 @@ void decode_dynamic(void) {
     parse_data(&ll_tree, &dist_tree);
 
 }
-/* }}} */
 
 
 void decode_fixed(void) {
@@ -682,7 +677,6 @@ void decode_fixed(void) {
 }
 
 void inflate(uint8_t *buffer, size_t length, uint8_t *output) {
-    /* {{{ */
     printf("inflate length: "LDFMT"\n", length);
 
     buf = buffer;
@@ -748,7 +742,6 @@ void inflate(uint8_t *buffer, size_t length, uint8_t *output) {
     // }
     // printf("\n");
 
-    /* }}} */
 
     total_bytes = 0;
 
