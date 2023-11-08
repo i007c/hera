@@ -41,6 +41,7 @@ typedef struct SectorFile {
 
 static SectorFile SECTORS[] = {
     [SECTOR_MAIN / 100]   = { NULL, "main",   "" },
+    [SECTOR_VULKAN / 100] = { NULL, "vulkan",   "" },
 };
 
 static char* SUB_SECTOR_NAMES[] = {

@@ -45,6 +45,16 @@ GC gc;
 bool running = true;
 bool bgra = true;
 
+starlight_scale_t *SCALERS[3] = {
+    starlight_scale_nn,
+    starlight_scale_bc,
+    starlight_scale_bl,
+};
+uint8_t scaler_index = 0;
+#define SCALERS_LEN 3
+
+uint8_t scaled_image_data[1920 * 1080 * 4];
+
 uint8_t downsclae_method = 0;
 
 uint32_t win_width = 1920;
@@ -79,6 +89,11 @@ static void keypress(XEvent *e);
 void win_toggle_fullscreen(void);
 void change_image(int32_t amount);
 
+// vulkan stuff
+void vk_init(void);
+void vk_scale(uint8_t *data, uint64_t data_size, uint8_t *output);
+void vk_cleanup(void);
+
 static void (*handler[LASTEvent])(XEvent *) = {
     [Expose] = expose,
     [KeyPress] = keypress,
@@ -86,6 +101,8 @@ static void (*handler[LASTEvent])(XEvent *) = {
 
 int main(int argc, char **argv) {
     log_info("--- Hera ---");
+
+    vk_init();
 
     total_files = argc - 1;
     if (total_files == 0) {
@@ -98,7 +115,7 @@ int main(int argc, char **argv) {
     change_image(0);
 
     if ((dpy = XOpenDisplay(NULL)) == NULL)
-        panic("con't open display :(");
+        panic("can't open display :(");
 
     screen = DefaultScreen(dpy);
     dpy_width = DisplayWidth(dpy, screen);
@@ -144,8 +161,8 @@ int main(int argc, char **argv) {
 
     pixm = XCreatePixmap(dpy, win, dpy_width, dpy_height, depth);
 	XSetWindowBackgroundPixmap(dpy, win, pixm);
-    XSetForeground(dpy, gc, 0x00f00000);
-    XFillRectangle(dpy, pixm, gc, 0, 0, 500, 200);
+    // XSetForeground(dpy, gc, 0x00f00000);
+    // XFillRectangle(dpy, pixm, gc, 0, 0, 500, 200);
 
 
     // win = XCreateWindow(
@@ -178,6 +195,8 @@ int main(int argc, char **argv) {
         if (handler[ev.type])
             handler[ev.type](&ev);
     }
+
+    vk_cleanup();
 
     XDestroyWindow(dpy, win);
     XCloseDisplay(dpy);
@@ -303,6 +322,8 @@ static void pan_image(int16_t x, int16_t y) {
 }
 
 static void draw_image(bool rescale) {
+    (void)rescale;
+    log_info("draw");
 
     // StarlightImageBuffer output = {
     //     .b = { .s = img_data, .c = img_data, .e = &img_data[IMG_DATA_LEN], .l = IMG_DATA_LEN },
@@ -312,37 +333,40 @@ static void draw_image(bool rescale) {
     //     .y = 0
     // };
 
-    log_debug(
-        "ww: %5d | wh: %5d - dw: %5d - dh: %5d | r: %f - rs: %f",
-        win_width, win_height, drawn.w, drawn.h, ratio, ratio_speed
-    );
-    if (rescale || !drawn.w) {
-        if (drawn.b.s) free(drawn.b.s);
 
-        // drawn.x = drawn.w - (image.w * ratio);
-        // drawn.y = drawn.h - (image.h * ratio);
-        drawn.w = image.w * ratio;
-        drawn.h = image.h * ratio;
-        if (drawn.w > 20000 || drawn.h > 20000) {
-            ratio = 0.2;
-            ratio_speed = (((float)win_width / image.w) / image.w) * 16;
-            drawn.w = image.w * ratio;
-            drawn.h = image.h * ratio;
-        }
-        pan_image(0, 0);
-        drawn.b.l = drawn.w * drawn.h * 4;
-        drawn.b.s = malloc(drawn.b.l);
-        assert(drawn.b.s != NULL);
-        drawn.b.c = drawn.b.s;
-        drawn.b.e = drawn.b.s + drawn.b.l - 1;
-        starlight_scale(&image, &drawn, bgra);
-        img = XCreateImage(
-            dpy, visual, depth, ZPixmap,
-            0, (char *)drawn.b.s, drawn.w, drawn.h, 32, 0
-        );
-        // img_w = output.w;
-        // img_h = output.h;
-    }
+    // if (rescale || !drawn.w) {
+    //     if (drawn.b.s) free(drawn.b.s);
+    //
+    //     // drawn.x = drawn.w - (image.w * ratio);
+    //     // drawn.y = drawn.h - (image.h * ratio);
+    //     drawn.w = (image.w) * ratio;
+    //     drawn.h = (image.h) * ratio;
+    //     if (drawn.w > 20000 || drawn.h > 20000) {
+    //         ratio = 0.2;
+    //         ratio_speed = (((float)win_width / image.w) / image.w) * 16;
+    //         drawn.w = image.w * ratio;
+    //         drawn.h = image.h * ratio;
+    //     }
+    //     pan_image(0, 0);
+    //     drawn.b.l = drawn.w * drawn.h * 4;
+    //     drawn.b.s = malloc(drawn.b.l);
+    //     assert(drawn.b.s != NULL);
+    //     drawn.b.c = drawn.b.s;
+    //     drawn.b.e = drawn.b.s + drawn.b.l - 1;
+    //     SCALERS[scaler_index](&image, &drawn, bgra);
+    //     img = XCreateImage(
+    //         dpy, visual, depth, ZPixmap,
+    //         0, (char *)drawn.b.s, drawn.w, drawn.h, 32, 0
+    //     );
+    //     // img_w = output.w;
+    //     // img_h = output.h;
+    // }
+
+    // log_info("scaler index: %u", scaler_index);
+    // log_debug(
+    //     "ww: %5d | wh: %5d - dw: %5d - dh: %5d | r: %f - rs: %f",
+    //     win_width, win_height, drawn.w, drawn.h, ratio, ratio_speed
+    // );
         // if (win_width > starlight.width && win_height > starlight.height) {
         //     upscale(starlight.width, starlight.height);
         // } else {
@@ -369,8 +393,8 @@ static void draw_image(bool rescale) {
     //     win_width, win_height, drawn.w, drawn.h
     // );
     
-    uint32_t pw = win_width;
-    uint32_t ph = win_height;
+    // uint32_t pw = win_width;
+    // uint32_t ph = win_height;
     pos_x = 0;
     pos_y = 0;
 
@@ -379,24 +403,40 @@ static void draw_image(bool rescale) {
     XFillRectangle(dpy, pixm, gc, 0, 0, win_width, win_height);
 
 
-    if (drawn.w < pw) {
-        pw = drawn.w;
-        pos_x = (win_width - pw) / 2;
-        // XClearArea(dpy, win, 0, 0, pos_x + 1, win_height, false);
-        // XClearArea(dpy, win, pw + pos_x - 1, 0, pos_x + 2, win_height, false);
-    }
+    // if (drawn.w < pw) {
+    //     pw = drawn.w;
+    //     pos_x = (win_width - pw) / 2;
+    //     // XClearArea(dpy, win, 0, 0, pos_x + 1, win_height, false);
+    //     // XClearArea(dpy, win, pw + pos_x - 1, 0, pos_x + 2, win_height, false);
+    // }
+    //
+    // if (drawn.h < ph) {
+    //     ph = drawn.h;
+    //     pos_y = (win_height - ph) / 2;
+    //
+    //     // XClearArea(dpy, win, 0, 0, win_width, pos_y + 1, false);
+    //     // XClearArea(dpy, win, 0, ph + pos_y - 1, win_width, pos_y + 2, false);
+    // }
 
-    if (drawn.h < ph) {
-        ph = drawn.h;
-        pos_y = (win_height - ph) / 2;
+    
 
-        // XClearArea(dpy, win, 0, 0, win_width, pos_y + 1, false);
-        // XClearArea(dpy, win, 0, ph + pos_y - 1, win_width, pos_y + 2, false);
+
+    vk_scale(image.b.s, image.b.l, scaled_image_data);
+    log_info("after scale");
+
+    for (uint64_t i = 0; i < 100; ++i) {
+        printf("%d ", scaled_image_data[i]);
     }
+    printf("\n");
+
+    img = XCreateImage(
+        dpy, visual, depth, ZPixmap,
+        0, (char *)scaled_image_data, 1920, 1080, 32, 0
+    );
 
     XPutImage(
         dpy, pixm, gc, img,
-        drawn.x, drawn.y, pos_x, pos_y, pw, ph
+        0, 0, 0, 0, 1920, 1080
     );
     XClearWindow(dpy, win);
 	// XSetWindowBackgroundPixmap(dpy, win, pixm);
@@ -445,7 +485,7 @@ void change_image(int32_t amount) {
             "Starlight status: %s",
             starlight_status_string(starlight_status)
         );
-        // total_files--;
+        total_files--;
         // filenames++;
         change_image(1);
         free(starlight.raw.s);
@@ -467,7 +507,7 @@ void change_image(int32_t amount) {
             "Starlight loader status: %s",
             starlight_status_string(starlight_status)
         );
-        // total_files--;
+        total_files--;
         // filenames++;
         change_image(1);
         free(starlight.raw.s);
@@ -486,6 +526,11 @@ void change_image(int32_t amount) {
     image.y = 0;
     drawn.w = 0;
     drawn.h = 0;
+    if (image.w > image.h) {
+        ratio = (float)win_width / image.w;
+    } else {
+        ratio = (float)win_height / image.h;
+    }
     ratio_speed = (((float)win_width / image.w) / image.w) * 16;
     // image.z = 1;
 }
@@ -546,6 +591,19 @@ static void keypress(XEvent *e) {
             draw_image(true);
             break;
 
+        case XK_b:
+            if (scaler_index) scaler_index--;
+            else scaler_index = SCALERS_LEN - 1;
+            draw_image(true);
+            break;
+
+        case XK_n:
+            scaler_index++;
+            if (scaler_index >= SCALERS_LEN) scaler_index = 0;
+            draw_image(true);
+            break;
+
+
         case XK_f:
             win_toggle_fullscreen();
             break;
@@ -560,29 +618,41 @@ static void keypress(XEvent *e) {
 
         case XK_d:
         case XK_Right:
-            // change_image(1);
-            // draw_image(true);
-            pan_image(pan_speed, 0);
+            if (ev->state & ControlMask) {
+                pan_image(pan_speed, 0);
+            } else {
+                change_image(1);
+            }
             draw_image(false);
             break;
 
         case XK_a:
         case XK_Left:
-            // change_image(-1);
-            // draw_image(true);
-            pan_image(-pan_speed, 0);
+            if (ev->state & ControlMask) {
+                pan_image(-pan_speed, 0);
+            } else {
+                change_image(-1);
+            }
             draw_image(false);
             break;
 
         case XK_w:
         case XK_Up:
-            pan_image(0, -pan_speed);
+            if (ev->state & ControlMask) {
+                pan_image(0, -pan_speed);
+            } else {
+                change_image(10);
+            }
             draw_image(false);
             break;
 
         case XK_s:
         case XK_Down:
-            pan_image(0, pan_speed);
+            if (ev->state & ControlMask) {
+                pan_image(0, pan_speed);
+            } else {
+                change_image(-10);
+            }
             draw_image(false);
             break;
 
@@ -593,7 +663,11 @@ static void keypress(XEvent *e) {
             break;
 
         case XK_2:
-            ratio = 1;
+            if (ev->state & ControlMask) {
+                ratio += 0.1;
+            } else {
+                ratio = 1;
+            }
             draw_image(true);
             break;
             

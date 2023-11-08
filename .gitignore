@@ -56,3 +56,6 @@ sample/
 bin/
 logs/
 **/.ccls-cache/
+shader/spv/
+ref/
+vk_apidump.html

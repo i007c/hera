@@ -9,6 +9,7 @@
 typedef enum {
     SECTOR_MAIN                   = 000,
     SECTOR_MAIN_HERA              = 001,
+    SECTOR_VULKAN                 = 100,
     // SECTOR_USER                   = 100,
     // SECTOR_USER_AGENT             = 101,
     // SECTOR_USER_PHONE             = 102,
@@ -18,7 +19,7 @@ typedef enum {
     // SECTOR_EATERY_DISH            = 401,
     // SECTOR_EATERY_REVIEW          = 402,
     // SECTOR_DETAIL                 = 500,
-    SECTOR_LENGTH                 = 100,
+    SECTOR_LENGTH                 = 200,
 } Sector; 
 
 
