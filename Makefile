@@ -33,7 +33,9 @@ $(STARLIGHT_DST): $(STARLIGHT_SRC)
 
 
 run: clear $(EXEC)
-	$(EXEC) sample/png/nz.png
+	# $(EXEC) ./sample/png/y3.leaves.png
+	# $(EXEC) ./sample/png/nn.png
+	$(EXEC) ./sample/png/0100.png
 
 
 clean:
@@ -52,6 +54,7 @@ install: $(EXEC)
 shaders:
 	mkdir -p shader/spv/
 	glslang -V shader/point.comp.glsl -o shader/spv/point.comp.spv
+	glslang -V shader/cube.comp.glsl -o shader/spv/cube.comp.spv
 
 
 .PHONY: clear run clean shaders

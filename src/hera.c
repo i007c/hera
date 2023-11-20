@@ -45,6 +45,8 @@ GC gc;
 bool running = true;
 bool bgra = true;
 
+ScaleData scale_data = {0};
+
 starlight_scale_t *SCALERS[3] = {
     starlight_scale_nn,
     starlight_scale_bc,
@@ -91,7 +93,9 @@ void change_image(int32_t amount);
 
 // vulkan stuff
 void vk_init(void);
-void vk_scale(uint8_t *data, uint64_t data_size, uint8_t *output);
+void vk_update_scale(ScaleData *data);
+void vk_set_input(uint8_t *data, uint64_t data_size);
+void vk_get_output(uint8_t *output);
 void vk_cleanup(void);
 
 static void (*handler[LASTEvent])(XEvent *) = {
@@ -308,17 +312,21 @@ int main(int argc, char **argv) {
 
 
 static void pan_image(int16_t x, int16_t y) {
-    drawn.x += x;
-    drawn.y += y;
-    if (drawn.x + win_width > drawn.w) {
-        drawn.x = drawn.w - win_width;
-    }
-    if (drawn.x < 0) drawn.x = 0;
+    scale_data.offset_x += x;
+    scale_data.offset_y += y;
 
-    if (drawn.y + win_height > drawn.h) {
-        drawn.y = drawn.h - win_height;
-    }
-    if (drawn.y < 0) drawn.y = 0;
+    log_info("offx: %d - offy: %d", scale_data.offset_x, scale_data.offset_y);
+    // drawn.x += x;
+    // drawn.y += y;
+    // if (drawn.x + win_width > drawn.w) {
+    //     drawn.x = drawn.w - win_width;
+    // }
+    // if (drawn.x < 0) drawn.x = 0;
+    //
+    // if (drawn.y + win_height > drawn.h) {
+    //     drawn.y = drawn.h - win_height;
+    // }
+    // if (drawn.y < 0) drawn.y = 0;
 }
 
 static void draw_image(bool rescale) {
@@ -418,16 +426,16 @@ static void draw_image(bool rescale) {
     //     // XClearArea(dpy, win, 0, ph + pos_y - 1, win_width, pos_y + 2, false);
     // }
 
-    
-
-
-    vk_scale(image.b.s, image.b.l, scaled_image_data);
+    scale_data.oh = win_height;
+    scale_data.ow = win_width;
+    vk_update_scale(&scale_data);
+    vk_get_output(scaled_image_data);
     log_info("after scale");
 
-    for (uint64_t i = 0; i < 100; ++i) {
-        printf("%d ", scaled_image_data[i]);
-    }
-    printf("\n");
+    // for (uint64_t i = 0; i < 100; ++i) {
+    //     printf("%d ", scaled_image_data[i]);
+    // }
+    // printf("\n");
 
     img = XCreateImage(
         dpy, visual, depth, ZPixmap,
@@ -436,7 +444,8 @@ static void draw_image(bool rescale) {
 
     XPutImage(
         dpy, pixm, gc, img,
-        0, 0, 0, 0, 1920, 1080
+        0, 0, scale_data.offset_x, scale_data.offset_y,
+        scale_data.imaxw, scale_data.imaxh
     );
     XClearWindow(dpy, win);
 	// XSetWindowBackgroundPixmap(dpy, win, pixm);
@@ -521,6 +530,9 @@ void change_image(int32_t amount) {
     image.b = starlight.out;
     image.w = starlight.width;
     image.h = starlight.height;
+    vk_set_input(image.b.s, image.b.l);
+    scale_data.iw = image.w;
+    scale_data.ih = image.h;
     // image.a = image.w / image.h;
     image.x = 0;
     image.y = 0;

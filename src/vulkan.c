@@ -1,4 +1,5 @@
 
+#include "hera.h"
 #include "logger.h"
 
 #include <stdlib.h>
@@ -19,6 +20,7 @@
 
 uint64_t input_size = 8192 * 8192 * 4;
 uint64_t output_size = 1920 * 1080 * 4;
+uint64_t uniform_size = sizeof(ScaleData);
 
 VkInstance instance;
 VkSurfaceKHR surface;
@@ -28,9 +30,11 @@ VkPhysicalDevice physical_device;
 
 VkDeviceMemory in_memory;
 VkDeviceMemory out_memory;
+VkDeviceMemory uniform_memory;
 
 VkBuffer in_buffer;
 VkBuffer out_buffer;
+VkBuffer uniform_buffer;
 
 VkShaderModule shader_module;
 
@@ -119,9 +123,6 @@ void vk_init(void) {
 
     vkCreateDevice(physical_device, &device_create_info, NULL, &device);
 
-
-
-
     VkPhysicalDeviceMemoryProperties memory_props;
     vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_props);
 
@@ -160,7 +161,6 @@ void vk_init(void) {
     };
 
     vkAllocateMemory(device, &in_allocate_info, NULL, &in_memory);
-
     vkBindBufferMemory(device, in_buffer, in_memory, 0);
 
     // output memory
@@ -187,7 +187,30 @@ void vk_init(void) {
     vkBindBufferMemory(device, out_buffer, out_memory, 0);
     // end of output memory
 
-    int fd = open("./shader/spv/point.comp.spv", O_RDONLY);
+    VkBufferCreateInfo uniform_buffer_create_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = uniform_size,
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .pQueueFamilyIndices = &compute_queue_family,
+        .queueFamilyIndexCount = 1
+    };
+    vkCreateBuffer(device, &uniform_buffer_create_info, NULL, &uniform_buffer);
+        
+    VkMemoryRequirements uniform_memory_requirements;
+    vkGetBufferMemoryRequirements(device, uniform_buffer, &uniform_memory_requirements);
+
+    VkMemoryAllocateInfo uniform_allocate_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = uniform_memory_requirements.size,
+        .memoryTypeIndex = memory_type_index
+    };
+
+    vkAllocateMemory(device, &uniform_allocate_info, NULL, &uniform_memory);
+    vkBindBufferMemory(device, uniform_buffer, uniform_memory, 0);
+
+
+    int fd = open("./shader/spv/cube.comp.spv", O_RDONLY);
     off_t file_size = lseek(fd, 0, SEEK_END);
     lseek(fd, 0, SEEK_SET);
     char *shader_data = malloc(file_size);
@@ -216,11 +239,18 @@ void vk_init(void) {
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = NULL
         },
+        [2] = {
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = NULL
+        },
     };
 
     VkDescriptorSetLayoutCreateInfo layout_create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 2,
+        .bindingCount = 3,
         .pBindings = layout_binding,
     };
 
@@ -257,7 +287,7 @@ void vk_init(void) {
 
     VkDescriptorPoolSize descriptor_pool_size = {
         .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .descriptorCount = 2
+        .descriptorCount = 3
     };
 
     VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
@@ -289,6 +319,12 @@ void vk_init(void) {
         .range = output_size,
     };
 
+    VkDescriptorBufferInfo uniform_buffer_info = {
+        .buffer = uniform_buffer,
+        .offset = 0,
+        .range = uniform_size,
+    };
+
     VkWriteDescriptorSet write_descriptor_set[] = {
         [0] = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -310,9 +346,19 @@ void vk_init(void) {
             .pImageInfo = NULL,
             .pBufferInfo = &out_buffer_info
         },
+        [2] = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptor_set,
+            .dstBinding = 2,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .pImageInfo = NULL,
+            .pBufferInfo = &uniform_buffer_info
+        },
     };
 
-    vkUpdateDescriptorSets(device, 2, write_descriptor_set, 0, NULL);
+    vkUpdateDescriptorSets(device, 3, write_descriptor_set, 0, NULL);
 
     VkCommandPoolCreateInfo cmd_pool_create_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -355,16 +401,55 @@ void vk_init(void) {
 
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &cmd_buffer;
+
+    log_info("end of vk_init");
 }
 
-
-void vk_scale(uint8_t *data, uint64_t data_size, uint8_t *output) {
-    // write some stuff in input memory
+void vk_set_input(uint8_t *data, uint64_t size) {
     uint8_t *input_data;
     vkMapMemory(device, in_memory, 0, input_size, 0, (void *)&input_data);
-    memcpy(input_data, data, data_size);
+    memcpy(input_data, data, size);
     vkUnmapMemory(device, in_memory);
+    log_info("end of vk_set_input");
+}
 
+void vk_update_scale(ScaleData *input) {
+    input->wr = (float)input->ow / input->iw;
+    input->hr = (float)input->oh / input->ih;
+    input->r = input->wr > input->hr ? input->hr : input->wr;
+    input->imaxw = input->r * input->iw;
+    input->imaxh = input->r * input->ih;
+    input->offset_x = (input->ow - input->imaxw) / 2;
+    input->offset_y = (input->oh - input->imaxh) / 2;
+
+    log_info(
+        "\nScaleData {\n"
+        "  .zoom: %f\n"
+        "  .iw: %u\n"
+        "  .ih: %u\n"
+        "  .ow: %u\n"
+        "  .oh: %u\n"
+        "  .wr: %f\n"
+        "  .hr: %f\n"
+        "  .r: %f\n"
+        "  .imaxw: %u\n"
+        "  .imaxh: %u\n"
+        "  .offset_x: %u\n"
+        "  .offset_y: %u\n"
+        "}",
+        input->zoom, input->iw, input->ih, input->ow, input->oh,
+        input->wr, input->hr, input->r, input->imaxw, input->imaxh,
+        input->offset_x, input->offset_y
+    );
+    ScaleData *data;
+    vkMapMemory(device, uniform_memory, 0, uniform_size, 0, (void *)&data);
+    memcpy(data, input, sizeof(ScaleData));
+    vkUnmapMemory(device, uniform_memory);
+    log_info("end of updating scale");
+}
+
+void vk_get_output(uint8_t *output) {
+    vkResetFences(device, 1, &fence);
     vkQueueSubmit(queue, 1, &submit_info, fence);
 
     vkWaitForFences(device, 1, &fence, true, -1);
@@ -393,11 +478,11 @@ void vk_cleanup(void) {
 
     vkDestroyBuffer(device, in_buffer, NULL);
     vkDestroyBuffer(device, out_buffer, NULL);
+    vkDestroyBuffer(device, uniform_buffer, NULL);
 
     vkFreeMemory(device, in_memory, NULL);
     vkFreeMemory(device, out_memory, NULL);
-
-
+    vkFreeMemory(device, uniform_memory, NULL);
 
     vkDestroyDevice(device, NULL);
     vkDestroyInstance(instance, NULL);
