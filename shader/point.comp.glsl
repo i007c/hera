@@ -1,7 +1,5 @@
 #version 450
 
-#extension GL_EXT_debug_printf : enable
-
 layout(local_size_x = 1, local_size_y = 1) in;
 
 layout(std430, binding = 0) buffer lay0 { int inbuf[]; };

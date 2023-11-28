@@ -14,6 +14,10 @@
 
 #include <vulkan/vulkan.h>
 
+#include <glslang/Include/glslang_c_interface.h>
+// #include <spirv-tools/libspirv.h>
+// #include <glslang/Public/ResourceLimits.h>
+
 #define LS SECTOR_VULKAN
 
 // static const char *vk_result_string(VkResult result);
@@ -62,8 +66,209 @@ VkSubmitInfo submit_info = {
     .pSignalSemaphores = NULL
 };
 
-void vk_init(void) {
-    log_info("Initializing Valkan");
+const glslang_resource_t DEFAULT_BUILTIN_RESOURCE = {
+    .max_lights = 32,
+    .max_clip_planes = 6,
+    .max_texture_units = 32,
+    .max_texture_coords = 32,
+    .max_vertex_attribs = 64,
+    .max_vertex_uniform_components = 4096,
+    .max_varying_floats = 64,
+    .max_vertex_texture_image_units = 32,
+    .max_combined_texture_image_units = 80,
+    .max_texture_image_units = 32,
+    .max_fragment_uniform_components = 4096,
+    .max_draw_buffers = 32,
+    .max_vertex_uniform_vectors = 128,
+    .max_varying_vectors = 8,
+    .max_fragment_uniform_vectors = 16,
+    .max_vertex_output_vectors = 16,
+    .max_fragment_input_vectors = 15,
+    .min_program_texel_offset = -8,
+    .max_program_texel_offset = 7,
+    .max_clip_distances = 8,
+    .max_compute_work_group_count_x = 65535,
+    .max_compute_work_group_count_y = 65535,
+    .max_compute_work_group_count_z = 65535,
+    .max_compute_work_group_size_x = 1024,
+    .max_compute_work_group_size_y = 1024,
+    .max_compute_work_group_size_z = 64,
+    .max_compute_uniform_components = 1024,
+    .max_compute_texture_image_units = 16,
+    .max_compute_image_uniforms = 8,
+    .max_compute_atomic_counters = 8,
+    .max_compute_atomic_counter_buffers = 1,
+    .max_varying_components = 60,
+    .max_vertex_output_components = 64,
+    .max_geometry_input_components = 64,
+    .max_geometry_output_components = 128,
+    .max_fragment_input_components = 128,
+    .max_image_units = 8,
+    .max_combined_image_units_and_fragment_outputs = 8,
+    .max_combined_shader_output_resources = 8,
+    .max_image_samples = 0,
+    .max_vertex_image_uniforms = 0,
+    .max_tess_control_image_uniforms = 0,
+    .max_tess_evaluation_image_uniforms = 0,
+    .max_geometry_image_uniforms = 0,
+    .max_fragment_image_uniforms = 8,
+    .max_combined_image_uniforms = 8,
+    .max_geometry_texture_image_units = 16,
+    .max_geometry_output_vertices = 256,
+    .max_geometry_total_output_components = 1024,
+    .max_geometry_uniform_components = 1024,
+    .max_geometry_varying_components = 64,
+    .max_tess_control_input_components = 128,
+    .max_tess_control_output_components = 128,
+    .max_tess_control_texture_image_units = 16,
+    .max_tess_control_uniform_components = 1024,
+    .max_tess_control_total_output_components = 4096,
+    .max_tess_evaluation_input_components = 128,
+    .max_tess_evaluation_output_components = 128,
+    .max_tess_evaluation_texture_image_units = 16,
+    .max_tess_evaluation_uniform_components = 1024,
+    .max_tess_patch_components = 120,
+    .max_patch_vertices = 32,
+    .max_tess_gen_level = 64,
+    .max_viewports = 16,
+    .max_vertex_atomic_counters = 0,
+    .max_tess_control_atomic_counters = 0,
+    .max_tess_evaluation_atomic_counters = 0,
+    .max_geometry_atomic_counters = 0,
+    .max_fragment_atomic_counters = 8,
+    .max_combined_atomic_counters = 8,
+    .max_atomic_counter_bindings = 1,
+    .max_vertex_atomic_counter_buffers = 0,
+    .max_tess_control_atomic_counter_buffers = 0,
+    .max_tess_evaluation_atomic_counter_buffers = 0,
+    .max_geometry_atomic_counter_buffers = 0,
+    .max_fragment_atomic_counter_buffers = 1,
+    .max_combined_atomic_counter_buffers = 1,
+    .max_atomic_counter_buffer_size = 16384,
+    .max_transform_feedback_buffers = 4,
+    .max_transform_feedback_interleaved_components = 64,
+    .max_cull_distances = 8,
+    .max_combined_clip_and_cull_distances = 8,
+    .max_samples = 4,
+    .max_mesh_output_vertices_nv = 256,
+    .max_mesh_output_primitives_nv = 512,
+    .max_mesh_work_group_size_x_nv = 32,
+    .max_mesh_work_group_size_y_nv = 1,
+    .max_mesh_work_group_size_z_nv = 1,
+    .max_task_work_group_size_x_nv = 32,
+    .max_task_work_group_size_y_nv = 1,
+    .max_task_work_group_size_z_nv = 1,
+    .max_mesh_view_count_nv = 4,
+    .max_mesh_output_vertices_ext = 256,
+    .max_mesh_output_primitives_ext = 256,
+    .max_mesh_work_group_size_x_ext = 128,
+    .max_mesh_work_group_size_y_ext = 128,
+    .max_mesh_work_group_size_z_ext = 128,
+    .max_task_work_group_size_x_ext = 128,
+    .max_task_work_group_size_y_ext = 128,
+    .max_task_work_group_size_z_ext = 128,
+    .max_mesh_view_count_ext = 4,
+    .max_dual_source_draw_buffers_ext = 1,
+
+    .limits = {
+        .non_inductive_for_loops = 1,
+        .while_loops = 1,
+        .do_while_loops = 1,
+        .general_uniform_indexing = 1,
+        .general_attribute_matrix_vector_indexing = 1,
+        .general_varying_indexing = 1,
+        .general_sampler_indexing = 1,
+        .general_variable_indexing = 1,
+        .general_constant_matrix_vector_indexing = 1
+    }
+};
+
+
+// /* Callback for local file inclusion */
+// typedef glsl_include_result_t* (*glsl_include_local_func)(void* ctx, const char* header_name, const char* includer_name,
+//                                                           size_t include_depth);
+//
+// /* Callback for system file inclusion */
+// typedef glsl_include_result_t* (*glsl_include_system_func)(void* ctx, const char* header_name,
+//                                                            const char* includer_name, size_t include_depth);
+//
+// /* Callback for include result destruction */
+// typedef int (*glsl_free_include_result_func)(void* ctx, glsl_include_result_t* result);
+//
+
+
+// glsl_include_result_t *glsl_include_local(
+//     void *ctx, const char *header_name, const size_t include_depth
+// ) {
+//     glsl_include_result_t result = {
+//         .header_name = header_name,
+//         .header_length = 1,
+//         .header_data
+//     };
+// }
+
+
+void vk_init(uint8_t shader_index) {
+    log_info("--- Valkan Init ---");
+
+    int fd = -1;
+    if (shader_index % 2) {
+        fd = open("./shader/cube.comp.glsl", O_RDONLY);
+    } else {
+        fd = open("./shader/point.comp.glsl", O_RDONLY);
+    }
+
+    off_t file_size = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);
+    char *shader_source = malloc(file_size + 1);
+    read(fd, shader_source, file_size);
+    close(fd);
+    shader_source[file_size] = 0;
+
+    // spv_context ctx;
+    // spv_binary bin;
+    // spv_diagnostic diagnostic;
+    //
+    // spv_result_t result = spvTextToBinary(
+    //     ctx, shader_source, file_size, &bin, &diagnostic
+    // );
+    // log_info("result: %s", result);
+
+    const glslang_input_t input = {
+        .language = GLSLANG_SOURCE_GLSL,
+        .stage = GLSLANG_STAGE_COMPUTE,
+        .client = GLSLANG_CLIENT_VULKAN,
+        .client_version = GLSLANG_TARGET_VULKAN_1_3,
+        .target_language = GLSLANG_TARGET_SPV,
+        .target_language_version = GLSLANG_TARGET_SPV_1_6,
+        .code = shader_source,
+        .default_version = 100,
+        .default_profile = GLSLANG_NO_PROFILE,
+        .force_default_version_and_profile = false,
+        .forward_compatible = false,
+        .messages = GLSLANG_MSG_DEFAULT_BIT,
+        .resource = &DEFAULT_BUILTIN_RESOURCE,
+    };
+
+    glslang_initialize_process();
+
+    glslang_shader_t *shader = glslang_shader_create(&input);
+    glslang_shader_preprocess(shader, &input);
+    glslang_shader_parse(shader, &input);
+
+    glslang_program_t *program = glslang_program_create();
+    glslang_program_add_shader(program, shader);
+    glslang_program_link(program, GLSLANG_MSG_SPV_RULES_BIT | GLSLANG_MSG_VULKAN_RULES_BIT);
+    glslang_program_SPIRV_generate(program, GLSLANG_STAGE_COMPUTE);
+    size_t spirv_size = glslang_program_SPIRV_get_size(program);
+    uint32_t *spirv_words = malloc(spirv_size * sizeof(uint32_t));
+    glslang_program_SPIRV_get(program, spirv_words);
+    const char* spirv_messages = glslang_program_SPIRV_get_messages(program);
+    log_info("spirv message: %s", spirv_messages);
+
+    glslang_program_delete(program);
+    glslang_shader_delete(shader);
+    glslang_finalize_process();
 
     VkApplicationInfo app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -209,17 +414,17 @@ void vk_init(void) {
     vkAllocateMemory(device, &uniform_allocate_info, NULL, &uniform_memory);
     vkBindBufferMemory(device, uniform_buffer, uniform_memory, 0);
 
-
-    int fd = open("./shader/spv/cube.comp.spv", O_RDONLY);
-    off_t file_size = lseek(fd, 0, SEEK_END);
-    lseek(fd, 0, SEEK_SET);
-    char *shader_data = malloc(file_size);
-    read(fd, shader_data, file_size);
+    // fd = open("./shader/spv/cube.comp.spv", O_RDONLY);
+    // file_size = lseek(fd, 0, SEEK_END);
+    // lseek(fd, 0, SEEK_SET);
+    // char *shader_data = malloc(file_size);
+    // read(fd, shader_data, file_size);
+    // close(fd);
 
     VkShaderModuleCreateInfo shader_create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = file_size,
-        .pCode = (uint32_t *)shader_data,
+        .codeSize = spirv_size * sizeof(uint32_t),
+        .pCode = spirv_words
     };
 
     vkCreateShaderModule(device, &shader_create_info, NULL, &shader_module);
@@ -271,7 +476,7 @@ void vk_init(void) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_COMPUTE_BIT,
         .module = shader_module,
-        .pName = "main"
+        .pName = "main",
     };
 
     VkComputePipelineCreateInfo compute_pipeline_create_info = {

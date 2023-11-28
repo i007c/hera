@@ -3,7 +3,8 @@ CC = gcc
 CFLAGS  = -std=c11 -O0 -ggdb -pedantic -Wall -Wextra -Wpedantic -Werror
 CFLAGS += -Isrc/include/ -D_GNU_SOURCE
 
-LDFLAGS = -lX11 -lXft -lstarlight -lvulkan
+LDFLAGS =  -lX11 -lXft -lstarlight -lvulkan
+LDFLAGS += -lglslang -lSPIRV
 # -lGL -lGLU -lGLEW -lglfw -lm
 # -ldl -lXrandr -lXi -lX11 -lpthread
 # -lglut 
@@ -17,7 +18,7 @@ HEADERS += $(STARLIGHT_DST)
 OBJECTS  = $(addprefix build/, $(SOURCES:.c=.o))
 EXEC = bin/hera
 
-$(EXEC): shaders clear $(OBJECTS)
+$(EXEC): clear $(OBJECTS)
 	mkdir -p $(@D)
 	$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
 

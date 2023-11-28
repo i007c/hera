@@ -78,6 +78,8 @@ int32_t fn = 0;
 int32_t total_files = 0;
 char **filenames;
 
+uint8_t shader_index = 0;
+
 StarlightImageBuffer image;
 StarlightImageBuffer drawn;
 float ratio = 0;
@@ -92,7 +94,7 @@ void win_toggle_fullscreen(void);
 void change_image(int32_t amount);
 
 // vulkan stuff
-void vk_init(void);
+void vk_init(uint8_t shader_index);
 void vk_update_scale(ScaleData *data);
 void vk_set_input(uint8_t *data, uint64_t data_size);
 void vk_get_output(uint8_t *output);
@@ -106,7 +108,7 @@ static void (*handler[LASTEvent])(XEvent *) = {
 int main(int argc, char **argv) {
     log_info("--- Hera ---");
 
-    vk_init();
+    vk_init(shader_index);
 
     total_files = argc - 1;
     if (total_files == 0) {
@@ -606,6 +608,14 @@ static void keypress(XEvent *e) {
         case XK_b:
             if (scaler_index) scaler_index--;
             else scaler_index = SCALERS_LEN - 1;
+            draw_image(true);
+            break;
+
+        case XK_j:
+            shader_index++;
+            vk_cleanup();
+            vk_init(shader_index);
+            vk_set_input(image.b.s, image.b.l);
             draw_image(true);
             break;
 
